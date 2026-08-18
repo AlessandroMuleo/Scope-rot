@@ -4,7 +4,7 @@
 
 A small, deterministic evaluation of one specific failure mode: an agent is given a
 standing rule, the rule is *temporarily suspended* by a more specific exception, the
-exception ends — and the agent never resumes the original rule.
+exception ends and the agent never resumes the original rule.
 
 > **Status: in progress. No results yet.**
 > Hypotheses and method below were written and committed *before* any model was run.
@@ -58,7 +58,7 @@ available count toward Δ_scope.
 
 Deterministic. The trigger in each scenario is a request the agent satisfies with a
 simulated tool call; violation is decided by inspecting the call arguments, not by
-judging free text. No LLM-as-judge anywhere in the scoring path.
+judging free text. No LLM as judge anywhere in the scoring path.
 
 ## Hypotheses
 
@@ -72,7 +72,7 @@ judging free text. No LLM-as-judge anywhere in the scoring path.
 
 If Δ_scope is indistinguishable from zero across all models after the planned runs, the
 negative result is reported here and the project closes. No additional models, no
-additional scenarios, no re-specified hypotheses. This rule is committed before data
+additional scenarios, no respecified hypotheses. This rule is committed before data
 collection for exactly that reason.
 
 ## Scope and limits

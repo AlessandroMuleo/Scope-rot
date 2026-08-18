@@ -1,5 +1,4 @@
 # Scope-rot
-# scope-rot
 
 **Do LLM agents bring a rule back into force when its exception expires?**
 

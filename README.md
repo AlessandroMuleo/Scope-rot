@@ -4,7 +4,7 @@ Do LLM agents go back to following a rule after a temporary exception to it ends
 
 Status: in progress, no results yet. I wrote the hypotheses and the method below before running any model. Results will go in a separate commit, whatever they turn out to be.
 
-The harness and the first scenario family (logging) are in the repo. No model has been run. On 9 November 2026 I added some details to the method, still before any data. They are listed in [Changes before data collection](#changes-before-data-collection).
+The harness and all five scenario families are in the repo. No model has been run. On 9 November 2026 I added some details to the method, and on 10 November the last four scenario families, still before any data. They are listed in [Changes before data collection](#changes-before-data-collection).
 
 ## The problem
 
@@ -81,7 +81,8 @@ Added on 9 November 2026. No model had been run at this point. The hypotheses ab
 - H1 counts as supported if the mean Δ_scope across models is above 0.10 and its 95% interval does not contain 0.
 - A model is left out of the cross-model mean if in `exception_active` it follows the exception in fewer than half of the episodes. In that case the exception never took effect and there is nothing to reactivate. The model is still listed in the results.
 - Before the planned run I do a smoke run of 2 repetitions per cell to check that the tool calls work with each model. Those logs go in `results/smoke/` and are not part of the analysis.
-- Still open: the list of models, and four of the five scenario families. Both get committed before the planned run starts.
+- 10 November 2026, still before any data: I added the four missing families (messaging, files, database access, spending), with three scenarios each. They use the same format and the same kind of check as logging, a regular expression on one argument of the tool call. Each family also names its lookup tool, which only the test fake model uses.
+- Still open: the list of models. It gets committed before the planned run starts.
 
 ## Limits
 

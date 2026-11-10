@@ -4,7 +4,8 @@ OpenAIBackend talks to any OpenAI-compatible chat-completions endpoint. That cov
 Ollama (http://localhost:11434/v1), OpenRouter, and most hosted providers.
 
 MockBackend is a scripted fake model. It exists to test the harness, never to
-produce results.
+produce results. For filler, hold and gap turns it calls the lookup tool named in the
+family's optional `lookup` field, and only answers in text if the family has none.
 """
 
 import json
@@ -139,13 +140,17 @@ class MockBackend:
             }
             return {"role": "assistant", "content": "", "tool_calls": [call]}
         if kind in ("filler", "gap", "hold"):
-            found = re.search(r"T-\d+", messages[-1]["content"])
+            # Neutral lookup, using the tool the family names in its `lookup` field.
+            lookup = hints.get("lookup")
+            if not lookup:
+                return {"role": "assistant", "content": "Noted."}
+            found = re.search(lookup["id_pattern"], messages[-1]["content"])
             call = {
                 "id": f"call_{len(messages)}",
                 "type": "function",
                 "function": {
-                    "name": "get_ticket",
-                    "arguments": json.dumps({"ticket_id": found.group(0) if found else "T-0"}),
+                    "name": lookup["tool"],
+                    "arguments": json.dumps({lookup["argument"]: found.group(0) if found else ""}),
                 },
             }
             return {"role": "assistant", "content": "", "tool_calls": [call]}

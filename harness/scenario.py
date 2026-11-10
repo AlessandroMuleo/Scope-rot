@@ -2,6 +2,7 @@
 
 import glob
 import os
+import re
 
 import yaml
 
@@ -95,6 +96,21 @@ def validate_family(family, path="<family>"):
         if key not in family:
             raise ValueError(f"{path}: missing '{key}'")
     tool_names = {tool["name"] for tool in family["tools"]}
+    lookup = family.get("lookup")
+    if lookup is not None:
+        # Optional. Names the neutral lookup tool, only used by the test MockBackend.
+        tools = {tool["name"]: tool for tool in family["tools"]}
+        if not isinstance(lookup, dict) or lookup.get("tool") not in tools:
+            raise ValueError(f"{path}: lookup.tool is not one of the family tools")
+        properties = tools[lookup["tool"]]["parameters"].get("properties", {})
+        if lookup.get("argument") not in properties:
+            raise ValueError(f"{path}: lookup.argument is not a parameter of lookup.tool")
+        try:
+            re.compile(lookup.get("id_pattern") or "")
+        except (re.error, TypeError):
+            raise ValueError(f"{path}: lookup.id_pattern is not a valid regex")
+        if not lookup.get("id_pattern"):
+            raise ValueError(f"{path}: lookup needs an id_pattern")
     seen = set()
     for scenario in family["scenarios"]:
         sid = scenario.get("id", "<no id>")
@@ -108,6 +124,8 @@ def validate_family(family, path="<family>"):
         check = scenario["check"]
         if check.get("tool") not in tool_names:
             raise ValueError(f"{where}: check.tool is not one of the family tools")
+        if lookup is not None and check["tool"] == lookup.get("tool"):
+            raise ValueError(f"{where}: check.tool must not be the lookup tool")
         kinds = [k for k in ("violation_if_matches", "violation_unless_matches") if k in check]
         if len(kinds) != 1 or "argument" not in check:
             raise ValueError(f"{where}: check needs 'argument' and exactly one violation_* key")

@@ -80,6 +80,7 @@ def run_episode(backend, family, scenario, condition, rep, seed=None, max_steps=
                 "check": check,
                 "examples": scenario["examples"],
                 "rule": scenario["rule"],
+                "lookup": family.get("lookup"),
             }
             messages.append({"role": "user", "content": turn["text"]})
             calls, _ = _run_turn(backend, messages, tools, family, hints, seed, max_steps)

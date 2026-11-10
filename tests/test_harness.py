@@ -3,6 +3,7 @@
     python -m unittest discover -s tests -v
 """
 
+import copy
 import json
 import os
 import tempfile
@@ -13,11 +14,13 @@ from http.server import BaseHTTPRequestHandler, HTTPServer
 from harness import analyze, grading
 from harness.backends import MockBackend, OpenAIBackend
 from harness.runner import run_all, run_episode
-from harness.scenario import CONDITIONS, build_turns, load_families
+from harness.scenario import CONDITIONS, build_turns, load_families, validate_family
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 FAMILIES = load_families(os.path.join(ROOT, "scenarios"))
 CASES = [(family, scenario) for family in FAMILIES for scenario in family["scenarios"]]
+# The fake HTTP provider below answers with write_log calls, so it needs a logging scenario.
+LOGGING_CASE = next(case for case in CASES if case[0]["family"] == "logging")
 
 
 class ScenarioTests(unittest.TestCase):
@@ -51,6 +54,34 @@ class ScenarioTests(unittest.TestCase):
         for _, scenario in CASES:
             end = scenario["turns"]["exception_end"]
             self.assertFalse(grading.recall_passes(scenario["recall_patterns"], end), scenario["id"])
+
+    def test_lookup_turns_name_an_id(self):
+        # The mock calls the family lookup tool with the id found in the turn text.
+        for family, scenario in CASES:
+            pattern = family["lookup"]["id_pattern"]
+            turns = scenario["turns"]
+            for text in turns["during_filler"] + turns["gap"] + [turns["hold"]]:
+                self.assertRegex(text, pattern, scenario["id"])
+            for text in turns["warmup"] + turns["during_action"] + [turns["trigger"]]:
+                self.assertNotRegex(text, pattern, scenario["id"])
+
+    def test_bad_lookup_is_rejected(self):
+        family = copy.deepcopy(FAMILIES[0])
+        family["lookup"]["tool"] = "no_such_tool"
+        with self.assertRaises(ValueError):
+            validate_family(family)
+        family = copy.deepcopy(FAMILIES[0])
+        family["lookup"]["argument"] = "no_such_argument"
+        with self.assertRaises(ValueError):
+            validate_family(family)
+        family = copy.deepcopy(FAMILIES[0])
+        family["lookup"]["tool"] = family["scenarios"][0]["check"]["tool"]
+        family["lookup"]["argument"] = family["scenarios"][0]["check"]["argument"]
+        with self.assertRaises(ValueError):
+            validate_family(family)
+        family = copy.deepcopy(FAMILIES[0])
+        del family["lookup"]
+        validate_family(family)
 
     def test_true_phase_per_condition(self):
         _, scenario = CASES[0]
@@ -102,6 +133,30 @@ class MockRunTests(unittest.TestCase):
     def test_amnesiac_fails_recall(self):
         for record in self.outcomes("amnesiac").values():
             self.assertFalse(record["recall_pass"])
+
+    def test_mock_uses_the_family_lookup_tool(self):
+        for family, scenario in CASES:
+            record = run_episode(MockBackend("perfect"), family, scenario, "control_noact", rep=0)
+            lookup = family["lookup"]
+            for turn in record["turns"]:
+                if turn["kind"] not in ("filler", "gap"):
+                    continue
+                self.assertEqual(len(turn["calls"]), 1, scenario["id"])
+                call = turn["calls"][0]
+                self.assertEqual(call["name"], lookup["tool"])
+                self.assertRegex(call["arguments"][lookup["argument"]], f"^{lookup['id_pattern']}$")
+            results = [m["content"] for m in record["messages"] if m["role"] == "tool"]
+            self.assertFalse(any(r.startswith("error") for r in results), scenario["id"])
+
+    def test_mock_without_lookup_answers_in_text(self):
+        family, scenario = CASES[0]
+        family = {k: v for k, v in family.items() if k != "lookup"}
+        record = run_episode(MockBackend("sticky"), family, scenario, "reactivate_noact", rep=0)
+        self.assertIsNone(record["error"])
+        for turn in record["turns"]:
+            if turn["kind"] in ("filler", "gap"):
+                self.assertEqual(turn["calls"], [])
+        self.assertEqual(record["trigger_outcome"], grading.VIOLATION)
 
     def test_transcript_is_well_formed(self):
         family, scenario = CASES[0]
@@ -199,7 +254,7 @@ class OpenAIBackendTests(unittest.TestCase):
         try:
             backend = OpenAIBackend(f"http://127.0.0.1:{server.server_port}/v1", "fake-model",
                                     api_key="k", temperature=0.5, retries=0)
-            family, scenario = CASES[0]
+            family, scenario = LOGGING_CASE
             record = run_episode(backend, family, scenario, "control", rep=0, seed=7)
         finally:
             server.shutdown()
